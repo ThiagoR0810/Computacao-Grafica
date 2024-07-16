@@ -1,3 +1,4 @@
+
 #include <SOIL/SOIL.h>
 #include <GL/glew.h>
 #include <GL/freeglut.h>
@@ -134,7 +135,7 @@ void criaListaAviao() {
 void criaListaCirculo() {
     listaCirculo = glGenLists(1);
     glNewList(listaCirculo, GL_COMPILE);  
-        desenhaCirculo(100, posicaoMouse.x, posicaoMouse.y, 1);
+        desenhaCirculo(100, mousePressionado.x, mousePressionado.y, 1);
     glEndList();
 }
 
@@ -142,10 +143,10 @@ void criaListaQuadrado() {
     listaQuadrado = glGenLists(1);
     glNewList(listaCirculo, GL_COMPILE);  
         glBegin(GL_POLYGON);
-            glVertex3f(posicaoMouse.x - 50, posicaoMouse.y + 50, 1);
-            glVertex3f(posicaoMouse.x + 50, posicaoMouse.y + 50, 1);
-            glVertex3f(posicaoMouse.x + 50, posicaoMouse.y - 50, 1);
-            glVertex3f(posicaoMouse.x - 50, posicaoMouse.y - 50, 1);
+            glVertex3f(mousePressionado.x - 50, mousePressionado.y + 50, 1);
+            glVertex3f(mousePressionado.x + 50, mousePressionado.y + 50, 1);
+            glVertex3f(mousePressionado.x + 50, mousePressionado.y - 50, 1);
+            glVertex3f(mousePressionado.x - 50, mousePressionado.y - 50, 1);
         glEnd();
     glEndList();
 }
@@ -159,7 +160,7 @@ void inicializa() {
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     idTexturaAviao = carregaTextura("avioes.png");
-    idTexturaFundo = carregaTextura("fundo.png");
+    //idTexturaFundo = carregaTextura("fundo.png");
 }
 
 
@@ -169,10 +170,10 @@ void desenha() {
 
     //glCallList(listaFundo); // chama a lista da textura de fundo
 
-    glColor3f(0, 0, 0); // escreve na tela com a cor preta
-    glCallList(listaNome);    // chama a lista
-
     glCallList(listaAviao);
+
+    glColor3f(1, 0, 0); // escreve na tela com a cor preta
+    glCallList(listaNome);    // chama a lista
 
     glutSwapBuffers();
 }
@@ -207,9 +208,29 @@ void redimensiona(int width, int height) {
     glLoadIdentity();
 }
 
-// Callback de evento de movimento do mouse e botoes do mouse
-void mouse(int button, int state, int x, int y) {
-    
+// Função para lidar com o clique do mouse
+void cliqueMouseBotao(int botao, int estado, int x, int y) {
+    char *estadoTexto = (estado == GLUT_DOWN) ? "pressionado" : "liberado";
+    mousePressionado.leftButtonDown = (botao == 0 && estado == GLUT_DOWN) ? 1 : 0;
+    mousePressionado.rightButtondown = (botao == 2 && estado == GLUT_DOWN) ? 1 : 0;
+    mousePressionado.x = x;
+    mousePressionado.y = y;
+    char evento[100];
+    snprintf(evento, sizeof(evento), "Botão %d %s, Posição do mouse: (%d, %d)", botao, estadoTexto, x, y);
+    if (botao == 0 && estado == GLUT_DOWN) {
+        printf("chamou@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n");
+        criaListaCirculo();
+    }
+    printf("%s\n", evento);
+    //registrarEvento(evento);
+}
+
+// Função para lidar com o movimento do mouse
+void movimentoMouse(int x, int y) {
+    char evento[100];
+    snprintf(evento, sizeof(evento), "Posição do mouse: (%d, %d)", x, y);
+    printf("%s\n", evento);
+    //registrarEvento(evento);
 }
 
 // Callback de evento de teclado
@@ -256,8 +277,8 @@ int main(int argc, char** argv) {
     glutDisplayFunc(desenha);
     glutReshapeFunc(redimensiona);
     glutKeyboardFunc(teclado);
-    glutMouseFunc(mouse);
-
+    glutMouseFunc(cliqueMouseBotao);
+    glutPassiveMotionFunc(movimentoMouse);
     // Registra a função "atualiza" para executar daqui a 0 milissegundos
     glutTimerFunc(0, atualizaCena, 33);
 
