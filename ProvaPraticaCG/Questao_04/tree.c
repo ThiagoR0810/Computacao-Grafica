@@ -1,29 +1,7 @@
 #include <GL/glew.h>
 #include <GL/freeglut.h>
-#include <SOIL/SOIL.h>
 #include <stdio.h>
 #include <math.h>
-
-typedef struct {
-    float position[3];   // Posição x, y, z
-    float front[3];      // Vetor frente da câmera
-    float up[3];         // Vetor "up" (para cima)
-    float yaw;           // Rotação horizontal (ângulo de Yaw)
-    float pitch;         // Rotação vertical (ângulo de Pitch)
-    float speed;         // Velocidade de movimento
-    float sensitivity;   // Sensibilidade do mouse
-} Camera;
-
-Camera camera = {
-    .position = {0.0f, 0.0f, 3.0f},  // Posição inicial
-    .front = {0.0f, 0.0f, -1.0f},    // Direção inicial
-    .up = {0.0f, 1.0f, 0.0f},        // Vetor 'up'
-    .yaw = -90.0f,                   // Yaw inicial (direção inicial para frente)
-    .pitch = 0.0f,                   // Pitch inicial (sem inclinação)
-    .speed = 0.05f,                  // Velocidade de movimento
-    .sensitivity = 0.1f              // Sensibilidade do mouse
-};
-
 
 // Variáveis para FPS
 char windowTitle[200];
@@ -48,6 +26,15 @@ const GLfloat minFogDensity = 0.0f;
 const GLfloat fogDensityStep = 0.01f;
 
 int shadingMode = 1; // 1 para Gouraud (GL_SMOOTH), 0 para Flat (GL_FLAT)
+
+// Variáveis da câmera
+float camX = 0.0f, camY = 1.0f, camZ = 5.0f; // Posição inicial da câmera
+float camYaw = 0.0f;  // Ângulo de rotação da câmera (olhando na direção Z)
+float camPitch = 0.0f;  // Rotação vertical da câmera (eixo X)
+float moveSpeed = 0.1f;  // Velocidade de movimento
+float mouseSensitivity = 0.005f;  // Sensibilidade do movimento do mouse
+
+int lastMouseX = -1, lastMouseY = -1;  // Posição anterior do mouse
 
 // Função para inicializar o OpenGL
 void initGL() {
@@ -86,23 +73,27 @@ void initGL() {
     GLfloat fogColor[] = {0.5f, 0.8f, 1.0f, 1.0f}; // Cor da neblina (igual ao céu)
     glFogfv(GL_FOG_COLOR, fogColor);      // Define a cor da neblina
     glFogi(GL_FOG_MODE, GL_EXP2);         // Define o modo da neblina (EXP2)
-    //adjustFogDensity();                   // Ajusta a densidade inicial da neblina
+    adjustFogDensity();                   // Ajusta a densidade inicial da neblina
 
-    //adjustLightIntensity(); // Inicializa a intensidade da luz
+    adjustLightIntensity(); // Inicializa a intensidade da luz
 }
 
+// Função que define a câmera
+void setCamera() {
+    // Limitar o pitch (ângulo vertical) para evitar rotação extrema
+    if (camPitch > M_PI_2 - 0.01f) {
+        camPitch = M_PI_2 - 0.01f;
+    } else if (camPitch < -M_PI_2 + 0.01f) {
+        camPitch = -M_PI_2 + 0.01f;
+    }
 
-void updateCameraDirection() {
-    float frontX = cosf(glm_rad(camera.yaw)) * cosf(glm_rad(camera.pitch));
-    float frontY = sinf(glm_rad(camera.pitch));
-    float frontZ = sinf(glm_rad(camera.yaw)) * cosf(glm_rad(camera.pitch));
+    // Direções da câmera com base em Yaw e Pitch
+    float camDirX = cos(camPitch) * sin(camYaw);
+    float camDirY = sin(camPitch);
+    float camDirZ = -cos(camPitch) * cos(camYaw);
 
-    camera.front[0] = frontX;
-    camera.front[1] = frontY;
-    camera.front[2] = frontZ;
-
-    // Normaliza o vetor frente
-    normalize(camera.front);
+    // Definir para onde a câmera está olhando
+    gluLookAt(camX, camY, camZ, camX + camDirX, camY + camDirY, camZ + camDirZ, 0.0f, 1.0f, 0.0f);
 }
 
 void adjustFogDensity() {
@@ -194,7 +185,7 @@ void drawTrunk() {
     // Desenha o tronco da árvore (cilindro)
     GLdouble baseRadius = 0.2;
     GLdouble topRadius = 0.2;
-    GLdouble height = 3.5;
+    GLdouble height = 2.5;
     GLint slices = 32;
     GLint stacks = 32;
 
@@ -290,9 +281,11 @@ void displayWindowTitle() {
 // Função principal de desenho
 void display() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
     
-    gluLookAt(0.0, 2.5, 8.5, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0);
+    setCamera();  // Aplica a câmera
 
     drawTree();
     drawGround();
@@ -308,21 +301,12 @@ void display() {
     }
 }
 
-void setView() {
-    float center[3] = {
-        camera.position[0] + camera.front[0],
-        camera.position[1] + camera.front[1],
-        camera.position[2] + camera.front[2]
-    };
-
-    gluLookAt(camera.position[0], camera.position[1], camera.position[2],  // Posição da câmera
-              center[0], center[1], center[2],                              // Ponto para onde a câmera está olhando
-              camera.up[0], camera.up[1], camera.up[2]);                    // Vetor 'up'
-}
-
-
 /// Função de teclado para aumentar/diminuir a intensidade da luz
 void handleKeyboard(unsigned char key, int x, int y) {
+
+    float camDirX = sin(camYaw);
+    float camDirZ = -cos(camYaw);
+
     switch (key) {
         case '+':
             if (lightIntensity < maxIntensity) {
@@ -390,35 +374,25 @@ void handleKeyboard(unsigned char key, int x, int y) {
             }
             adjustFogDensity(); // Ajusta a intensidade da neblina
             break;
-
-        case 'w': //Move para frente
-            camera.position[0] += camera.front[0] * camera.speed;
-            camera.position[1] += camera.front[1] * camera.speed;
-            camera.position[2] += camera.front[2] * camera.speed;
-            break;
-
-        case 's': //Move para trás
-            camera.position[0] -= camera.front[0] * camera.speed;
-            camera.position[1] -= camera.front[1] * camera.speed;
-            camera.position[2] -= camera.front[2] * camera.speed;
-            break;
-
-        case 'a': // Move para esquerda (produto vetorial com o vetor "up")
-            float left[3];
-            crossProduct(camera.front, camera.up, left);  // Vetor à esquerda
-            normalize(left);
-            camera.position[0] -= left[0] * camera.speed;
-            camera.position[1] -= left[1] * camera.speed;
-            camera.position[2] -= left[2] * camera.speed;
-            break;
         
-        case 'd': // Move para direita
-            float right[3];
-            crossProduct(camera.up, camera.front, right);  // Vetor à direita
-            normalize(right);
-            camera.position[0] += right[0] * camera.speed;
-            camera.position[1] += right[1] * camera.speed;
-            camera.position[2] += right[2] * camera.speed;
+        case 'w':  // Movimenta para frente
+            camX += camDirX * moveSpeed;
+            camZ += camDirZ * moveSpeed;
+            break;
+
+        case 's':  // Movimenta para trás
+            camX -= camDirX * moveSpeed;
+            camZ -= camDirZ * moveSpeed;
+            break;
+
+        case 'a':  // Movimenta para esquerda
+            camX -= cos(camYaw) * moveSpeed;
+            camZ -= sin(camYaw) * moveSpeed;
+            break;
+
+        case 'd':  // Movimenta para direita
+            camX += cos(camYaw) * moveSpeed;
+            camZ += sin(camYaw) * moveSpeed;
             break;
 
         default:
@@ -427,29 +401,27 @@ void handleKeyboard(unsigned char key, int x, int y) {
     glutPostRedisplay(); // Atualiza a tela
 }
 
+// Função de movimentação do mouse
 void mouseMovement(int x, int y) {
-    static int lastX = 400, lastY = 300;  // Ponto central da tela
-    float xoffset = x - lastX;
-    float yoffset = lastY - y;  // Invertido, pois os eixos y da janela vão para baixo
+    if (lastMouseX == -1 && lastMouseY == -1) {
+        lastMouseX = x;
+        lastMouseY = y;
+    }
 
-    lastX = x;
-    lastY = y;
+    // Calcular a diferença de movimento do mouse
+    int dx = x - lastMouseX;
+    int dy = y - lastMouseY;
 
-    xoffset *= camera.sensitivity;
-    yoffset *= camera.sensitivity;
+    // Ajustar o ângulo de rotação com base na diferença e na sensibilidade
+    camYaw += dx * mouseSensitivity;
+    camPitch -= dy * mouseSensitivity;  // Inverter o sinal para a rotação ficar correta
 
-    camera.yaw += xoffset;
-    camera.pitch += yoffset;
+    // Atualizar as últimas posições do mouse
+    lastMouseX = x;
+    lastMouseY = y;
 
-    // Limita o pitch entre -89 e 89 graus para evitar o "flip" da câmera
-    if (camera.pitch > 89.0f)
-        camera.pitch = 89.0f;
-    if (camera.pitch < -89.0f)
-        camera.pitch = -89.0f;
-
-    updateCameraDirection();  // Atualiza a direção da câmera com os novos ângulos
+    glutPostRedisplay();  // Atualiza a tela
 }
-
 
 // Função principal
 int main(int argc, char** argv) {
@@ -468,7 +440,7 @@ int main(int argc, char** argv) {
     glutDisplayFunc(display);
     glutReshapeFunc(resize);
     glutKeyboardFunc(handleKeyboard); // Adiciona o callback de teclado
-    glutPassiveMotionFunc(mouseMovement);  // Função para movimento do mouse
+    glutPassiveMotionFunc(mouseMovement);  // Capturar o movimento do mouse sem cliques
 
     // Inicia o loop principal do GLUT
     previousTime = glutGet(GLUT_ELAPSED_TIME);
